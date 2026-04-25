@@ -42,16 +42,17 @@ export function isGeminiQuotaError(error: unknown): boolean {
 export async function callGemini(
   prompt: string,
   imageParts?: Part[],
-  options?: { responseMimeType?: "application/json" | "text/plain" },
+  options?: { responseMimeType?: "application/json" | "text/plain"; maxOutputTokens?: number },
 ): Promise<string> {
   const parts: Part[] = [{ text: prompt }];
   if (imageParts) parts.unshift(...imageParts);
 
   const result = await getModel().generateContent({
     contents: [{ role: "user", parts }],
-    generationConfig: options?.responseMimeType
-      ? { responseMimeType: options.responseMimeType }
-      : undefined,
+    generationConfig: {
+      ...(options?.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
+      ...(options?.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
+    },
   });
   const text = result.response.text();
 

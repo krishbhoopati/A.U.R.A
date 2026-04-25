@@ -31,6 +31,7 @@ PLACEMENT RULES:
 - For events: round tables distributed across main area, stage at front, bar against a wall.
 - For offices: desks in rows or clusters, meeting rooms separated, lounge near entrance.
 - For factories: workstations in sequence along production flow, storage at back.
+- Staircases: if the floor plan geometry includes staircases (floorplan.staircases array), place a "staircase" object at each detected position using the x, y, width, depth, and rotation values directly from floorplan.staircases. Do not move detected staircases. If floorplan.staircases is empty, do not invent staircase objects. The roomId for each staircase must be the id of the nearest room from floorplan.rooms — NEVER use "global" or any id not present in floorplan.rooms.
 
 AVAILABLE OBJECT TYPES AND DEFAULT SIZES:
 - table: 2.0m wide, 1.0m deep, 0.75m tall
@@ -45,6 +46,7 @@ AVAILABLE OBJECT TYPES AND DEFAULT SIZES:
 - counter: 2.0m wide, 0.8m deep, 0.9m tall
 - equipment: 1.5m wide, 1.5m deep, 1.2m tall
 - divider: 3.0m wide, 0.1m deep, 1.8m tall
+- staircase: 2.0m wide, 3.0m deep, 3.0m tall (stepped structure — use positions from floorplan.staircases when available)
 
 CATEGORIZE the use case as exactly one of: event, hackathon, office, factory, classroom, retail, other.
 
@@ -94,6 +96,7 @@ async function runAgent2ViaBackboard(prompt: string, floorplan: FloorPlan): Prom
 async function runAgent2ViaGeminiDirect(prompt: string, floorplan: FloorPlan): Promise<Agent2Result> {
   const rawResponse = await callGemini(prompt, undefined, {
     responseMimeType: "application/json",
+    maxOutputTokens: 8192,
   });
   return normalizeAgent2Output(parseGeminiJsonResponse(rawResponse), floorplan);
 }

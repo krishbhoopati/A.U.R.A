@@ -7,6 +7,7 @@ import {
   UseCaseCategory,
   ObjectType,
   Wall,
+  StaircaseLocation,
 } from "@/types/scene";
 
 const ROOM_TYPES = [
@@ -35,6 +36,7 @@ const OBJECT_TYPES = [
   "plant",
   "divider",
   "entrance_marker",
+  "staircase",
 ] as const satisfies readonly ObjectType[];
 
 const USE_CASE_CATEGORIES = [
@@ -185,6 +187,20 @@ function buildBoundingWalls(width: number, depth: number, height = 3): Wall[] {
 
 function normalizeRoom(value: unknown, index: number): Room {
   const room = expectRecord(value, `floorplan.rooms[${index}]`);
+  const polygon = Array.isArray(room.polygon)
+    ? (room.polygon as unknown[])
+        .filter(
+          (pt) =>
+            isRecord(pt) &&
+            typeof (pt as Record<string, unknown>).x === "number" &&
+            typeof (pt as Record<string, unknown>).y === "number",
+        )
+        .map((pt) => ({
+          x: (pt as Record<string, unknown>).x as number,
+          y: (pt as Record<string, unknown>).y as number,
+        }))
+    : undefined;
+
   return {
     id: readString(room.id, `floorplan.rooms[${index}].id`, { defaultValue: `room_${index + 1}` }),
     name: readString(room.name, `floorplan.rooms[${index}].name`, { defaultValue: `Room ${index + 1}` }),
@@ -193,6 +209,7 @@ function normalizeRoom(value: unknown, index: number): Room {
     width: readPositiveNumber(room.width, `floorplan.rooms[${index}].width`),
     height: readPositiveNumber(room.height, `floorplan.rooms[${index}].height`),
     type: readEnumValue(room.type, `floorplan.rooms[${index}].type`, ROOM_TYPES, { defaultValue: "unknown" }),
+    ...(polygon && polygon.length >= 3 ? { polygon } : {}),
   };
 }
 
@@ -239,6 +256,16 @@ export function normalizeFloorPlan(input: unknown): FloorPlan {
           })(),
     confidence: clampConfidence(floorplan.confidence),
     notes: readString(floorplan.notes, "floorplan.notes", { allowEmpty: true, defaultValue: "" }),
+    staircases: Array.isArray(floorplan.staircases)
+      ? (floorplan.staircases as StaircaseLocation[]).filter(
+          (s) =>
+            typeof s.x === "number" &&
+            typeof s.y === "number" &&
+            typeof s.width === "number" &&
+            typeof s.depth === "number" &&
+            typeof s.rotation === "number",
+        )
+      : [],
   };
 }
 
@@ -249,11 +276,8 @@ function normalizeSceneObject(
   fieldPrefix: string,
 ): SceneObject {
   const object = expectRecord(value, `${fieldPrefix}[${index}]`);
-  const roomId = readString(object.roomId, `${fieldPrefix}[${index}].roomId`);
-
-  if (!roomIds.has(roomId)) {
-    throw new Error(`${fieldPrefix}[${index}].roomId references unknown room "${roomId}"`);
-  }
+  const roomIdRaw = readString(object.roomId, `${fieldPrefix}[${index}].roomId`, { defaultValue: "" });
+  const roomId = roomIds.has(roomIdRaw) ? roomIdRaw : Array.from(roomIds)[0];
 
   return {
     id: readString(object.id, `${fieldPrefix}[${index}].id`, { defaultValue: `obj_${index + 1}` }),
@@ -339,5 +363,8 @@ export function normalizeSceneFile(input: unknown): SceneFile {
         { allowEmpty: true, defaultValue: "" },
       ),
     },
+    ...(readOptionalString(payload.floorplanImageUrl)
+      ? { floorplanImageUrl: readOptionalString(payload.floorplanImageUrl) }
+      : {}),
   };
 }

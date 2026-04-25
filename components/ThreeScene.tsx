@@ -4,12 +4,23 @@ import * as THREE from 'three';
 import { useEffect, useRef, useCallback } from 'react';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import { SceneFile, SceneObject, Wall } from '@/types/scene';
+import { Room, SceneFile, SceneObject, Wall } from '@/types/scene';
 
 interface Props {
   sceneData: SceneFile;
   mode: 'walk' | 'orbit';
 }
+
+const ROOM_FLOOR_COLORS: Record<string, number> = {
+  main_hall: 0x363636,
+  office:    0x2d3848,
+  corridor:  0x282828,
+  bathroom:  0x2a3535,
+  storage:   0x302820,
+  kitchen:   0x2e2820,
+  entrance:  0x3a3a3a,
+  unknown:   0x2d2d2d,
+};
 
 const OBJECT_COLORS: Record<string, number> = {
   table:        0x8B6914,
@@ -26,7 +37,35 @@ const OBJECT_COLORS: Record<string, number> = {
   divider:      0xe2e8f0,
   plant:        0x276749,
   entrance_marker: 0xe53e3e,
+  staircase:    0xb7791f,
 };
+
+function createRoomFloor(room: Room): THREE.Mesh {
+  const color = ROOM_FLOOR_COLORS[room.type] ?? 0x2d2d2d;
+  const material = new THREE.MeshLambertMaterial({ color });
+
+  if (room.polygon && room.polygon.length >= 3) {
+    const shape = new THREE.Shape();
+    shape.moveTo(room.polygon[0].x, room.polygon[0].y);
+    for (let i = 1; i < room.polygon.length; i++) {
+      shape.lineTo(room.polygon[i].x, room.polygon[i].y);
+    }
+    shape.closePath();
+    const geometry = new THREE.ShapeGeometry(shape);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = 0.01;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  const geometry = new THREE.PlaneGeometry(room.width, room.height);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(room.x + room.width / 2, 0.01, room.y + room.height / 2);
+  mesh.receiveShadow = true;
+  return mesh;
+}
 
 function createFloor(width: number, depth: number): THREE.Mesh {
   const geometry = new THREE.PlaneGeometry(width, depth);
@@ -75,7 +114,39 @@ function createTextLabel(text: string): CSS2DObject {
   return new CSS2DObject(div);
 }
 
+function createStaircase(obj: SceneObject): THREE.Group {
+  const group = new THREE.Group();
+  const STEPS = 8;
+  const stepDepth = obj.depth / STEPS;
+  const stepHeightIncrement = obj.height / STEPS;
+  const color = obj.color ? new THREE.Color(obj.color).getHex() : 0xb7791f;
+
+  for (let i = 0; i < STEPS; i++) {
+    const thisStepHeight = stepHeightIncrement * (i + 1);
+    const geometry = new THREE.BoxGeometry(obj.width, thisStepHeight, stepDepth);
+    const material = new THREE.MeshLambertMaterial({ color });
+    const step = new THREE.Mesh(geometry, material);
+    step.castShadow = true;
+    step.receiveShadow = true;
+    step.position.set(0, thisStepHeight / 2, (i - STEPS / 2 + 0.5) * stepDepth);
+    group.add(step);
+  }
+
+  const label = createTextLabel(obj.label);
+  label.position.set(0, obj.height + 0.3, 0);
+  group.add(label);
+
+  return group;
+}
+
 function createObject(obj: SceneObject): THREE.Group {
+  if (obj.type === 'staircase') {
+    const group = createStaircase(obj);
+    group.position.set(obj.x, 0, obj.y);
+    group.rotation.y = (obj.rotation * Math.PI) / 180;
+    return group;
+  }
+
   const group = new THREE.Group();
 
   let geometry: THREE.BufferGeometry;
@@ -147,8 +218,32 @@ export default function ThreeScene({ sceneData, mode }: Props) {
     );
     camera.lookAt(sceneData.floorplan.width / 2, 1.7, 0);
 
-    // Floor
-    scene.add(createFloor(sceneData.floorplan.width, sceneData.floorplan.depth));
+    // Base floor — plain dark slab always present
+    const baseFloor = createFloor(sceneData.floorplan.width, sceneData.floorplan.depth);
+    scene.add(baseFloor);
+
+    // If the original floor plan image URL is available, apply it as a texture
+    if (sceneData.floorplanImageUrl) {
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load(
+        sceneData.floorplanImageUrl,
+        (texture) => {
+          texture.flipY = false;
+          (baseFloor.material as THREE.MeshLambertMaterial).map = texture;
+          (baseFloor.material as THREE.MeshLambertMaterial).color.set(0xffffff);
+          (baseFloor.material as THREE.MeshLambertMaterial).needsUpdate = true;
+        },
+        undefined,
+        () => {
+          console.warn('Floor plan image texture failed to load, using solid floor');
+        },
+      );
+    }
+
+    // Per-room colored floors (only shown if no image texture)
+    if (!sceneData.floorplanImageUrl) {
+      sceneData.floorplan.rooms.forEach(room => scene.add(createRoomFloor(room)));
+    }
 
     // Walls
     sceneData.floorplan.walls.forEach(w => scene.add(createWall(w)));

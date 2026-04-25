@@ -24,6 +24,7 @@ const OBJECT_LIBRARY: Record<ObjectType, ObjectTemplate> = {
   plant: { type: "plant", width: 0.8, depth: 0.8, height: 1.2 },
   divider: { type: "divider", width: 3.0, depth: 0.1, height: 1.8 },
   entrance_marker: { type: "entrance_marker", width: 1.0, depth: 1.0, height: 0.2 },
+  staircase: { type: "staircase", width: 2.0, depth: 3.0, height: 3.0 },
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -465,5 +466,14 @@ export function buildFallbackFloorPlan(buffer: Buffer, mimeType: string): FloorP
     scale: 10,
     confidence: 0.22,
     notes: "Fallback geometry used because Gemini was unavailable. The layout is approximated as a single primary hall using the uploaded image aspect ratio.",
+    staircases: [
+      {
+        x: width - 2.5,
+        y: 2.0,
+        width: 2.0,
+        depth: 3.0,
+        rotation: 0,
+      },
+    ],
   };
 }

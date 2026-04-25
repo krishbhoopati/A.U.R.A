@@ -9,8 +9,9 @@ export function runAgent3(params: {
   useCaseCategory: UseCaseCategory;
   placementNotes: string;
   useCase: string;
+  floorplanImageUrl?: string;
 }): SceneFile {
-  const { floorplan, objects, useCaseCategory, placementNotes, useCase } = params;
+  const { floorplan, objects, useCaseCategory, placementNotes, useCase, floorplanImageUrl } = params;
 
   const validatedObjects = objects.map((obj) => ({
     ...obj,
@@ -21,7 +22,7 @@ export function runAgent3(params: {
   }));
 
   const sceneFile = {
-    version: '1.0',
+    version: '1.0' as const,
     sceneId: uuidv4(),
     createdAt: new Date().toISOString(),
     floorplan,
@@ -31,6 +32,7 @@ export function runAgent3(params: {
       objects: validatedObjects,
       placementNotes,
     },
+    ...(floorplanImageUrl ? { floorplanImageUrl } : {}),
   };
 
   return normalizeSceneFile(sceneFile);

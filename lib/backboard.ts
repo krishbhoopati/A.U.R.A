@@ -47,7 +47,7 @@ export async function runPipeline(jobId: string, floorplanImageUrl: string, useC
 
     // --- Agent 3 ---
     await db.updateJobStatus(jobId, "agent3_running");
-    const sceneFile = runAgent3({ floorplan, objects, useCaseCategory, placementNotes, useCase });
+    const sceneFile = runAgent3({ floorplan, objects, useCaseCategory, placementNotes, useCase, floorplanImageUrl });
 
     // --- Save to Object Storage ---
     const sceneKey = `scenes/${sceneFile.sceneId}.json`;
